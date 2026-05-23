@@ -360,20 +360,21 @@ body::before {
 /* ── Error toast ── */
 #toast {
   position:fixed;
-  bottom:140px; left:50%;
-  transform:translateX(-50%) translateY(20px);
-  background:#1a0a0a;
+  bottom:160px; left:12px; right:12px;
+  transform:translateY(20px);
+  background:#1a0808;
   border:1px solid #ff4444;
-  border-radius:8px;
-  padding:10px 16px;
-  font-size:12px;
-  color:#ff9999;
+  border-radius:10px;
+  padding:12px 16px;
+  font-size:13px;
+  line-height:1.4;
+  color:#ffaaaa;
   opacity:0;
   transition:all 0.3s;
   z-index:200;
-  white-space:nowrap;
+  text-align:center;
 }
-#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+#toast.show { opacity:1; transform:translateY(0); }
 </style>
 </head>
 <body>
@@ -545,43 +546,55 @@ function setupVoices() {
 // ──────────────────────────────────────────────
 // Speech Recognition
 // ──────────────────────────────────────────────
-function setupRecognition() {
+function buildRecognition() {
   const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRec) {
-    showToast('Usa Chrome para reconocimiento de voz');
-    return;
-  }
+  if (!SpeechRec) return null;
 
-  recognition = new SpeechRec();
-  recognition.continuous = false;
-  recognition.interimResults = true;
+  const r = new SpeechRec();
+  r.continuous = false;
+  r.interimResults = true;
+  r.lang = cfg.lang;
 
-  recognition.onresult = (e) => {
-    let interim = '';
-    let final = '';
+  r.onresult = (e) => {
+    let interim = '', final = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        final += e.results[i][0].transcript;
-      } else {
-        interim += e.results[i][0].transcript;
-      }
+      if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      else interim += e.results[i][0].transcript;
     }
     document.getElementById('interim').textContent = interim || final;
     if (final) {
       document.getElementById('interim').textContent = '';
-      recognition.stop();
       sendToJarvis(final.trim());
     }
   };
 
-  recognition.onerror = (e) => {
-    if (e.error !== 'aborted') showToast('Error: ' + e.error);
+  r.onerror = (e) => {
+    const msgs = {
+      'not-allowed':   'Micrófono bloqueado — toca el candado en Chrome y da permiso',
+      'network':       'Sin conexión — el reconocimiento de voz requiere internet',
+      'no-speech':     'No se detectó voz — intenta de nuevo',
+      'audio-capture': 'No se encontró micrófono',
+      'service-not-allowed': 'Servicio no disponible — usa HTTPS',
+      'aborted':       null,
+    };
+    const msg = msgs[e.error] || ('Error de voz: ' + e.error);
+    if (msg) showToast(msg, 5000);
     setState('idle');
   };
 
-  recognition.onend = () => {
+  r.onend = () => {
     if (state === 'listening') setState('idle');
   };
+
+  return r;
+}
+
+function setupRecognition() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec) {
+    document.getElementById('status-text').textContent = 'USA CHROME PARA VOZ';
+  }
+  recognition = buildRecognition();
 }
 
 // ──────────────────────────────────────────────
@@ -589,31 +602,45 @@ function setupRecognition() {
 // ──────────────────────────────────────────────
 function toggleListen() {
   if (state === 'speaking') {
-    // Interrupt
     stopSpeaking();
     startListening();
   } else if (state === 'listening') {
-    recognition.stop();
+    if (recognition) recognition.abort();
     setState('idle');
   } else if (state === 'idle') {
     startListening();
   }
-  // If thinking, ignore tap
 }
 
-function startListening() {
+async function startListening() {
   if (!cfg.apiKey) { openSettings(); return; }
-  if (!recognition) { showToast('Reconocimiento de voz no disponible'); return; }
+
+  // Explicitly request mic — shows Android permission dialog
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop()); // release immediately
+  } catch(e) {
+    showToast('Micrófono bloqueado — toca el candado en Chrome y activa el micrófono', 6000);
+    setState('idle');
+    return;
+  }
+
+  // Recreate recognition each time (avoids Android stuck state)
+  recognition = buildRecognition();
+  if (!recognition) {
+    showToast('Usa Chrome para reconocimiento de voz', 4000);
+    return;
+  }
 
   stopSpeaking();
   document.getElementById('interim').textContent = '';
+  setState('listening');
 
-  recognition.lang = cfg.lang;
   try {
     recognition.start();
-    setState('listening');
   } catch(e) {
-    // Already started
+    showToast('Error al iniciar micrófono: ' + e.message, 4000);
+    setState('idle');
   }
 }
 
@@ -781,11 +808,13 @@ function escHtml(t) {
   return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function showToast(msg, duration = 3000) {
+let toastTimer = null;
+function showToast(msg, duration = 3500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), duration);
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
 function saveHistory() {
