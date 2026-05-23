@@ -398,11 +398,62 @@ select.field-input option { background:#071425; }
   font-size:12px; color:#ff9977; text-align:center;
   letter-spacing:0.5px;
 }
+
+/* ── Image preview ── */
+#img-preview-bar {
+  display:none; position:relative; z-index:8;
+  padding:8px 16px; align-items:center; gap:10px;
+  background:rgba(0,80,120,0.15);
+  border-bottom:1px solid var(--border);
+}
+#img-preview-bar.show { display:flex; }
+#img-preview-bar img {
+  width:48px; height:48px;
+  object-fit:cover; border-radius:6px;
+  border:1px solid var(--accent2);
+}
+#img-preview-bar span { font-size:12px; color:var(--text-dim); flex:1; }
+#img-clear-btn {
+  background:none; border:none;
+  color:var(--text-dim); font-size:18px; cursor:pointer;
+  padding:4px;
+}
+
+/* ── Camera button ── */
+.cam-btn {
+  background:rgba(0,80,120,0.3);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text-dim);
+  font-size:22px;
+  width:46px; height:46px;
+  cursor:pointer; display:flex;
+  align-items:center; justify-content:center;
+  transition:all 0.2s;
+}
+.cam-btn:hover, .cam-btn.has-img {
+  border-color:rgba(0,212,255,0.5);
+  color:var(--accent);
+  background:rgba(0,100,140,0.3);
+}
+
+/* ── Action row ── */
+.action-row {
+  display:flex; align-items:center; gap:10px;
+  width:100%;
+}
 </style>
 </head>
 <body>
 
 <div id="err-banner"></div>
+
+<div id="img-preview-bar">
+  <img id="img-preview-thumb" src="" alt="preview">
+  <span>Imagen lista — habla para describir o preguntar</span>
+  <button id="img-clear-btn" onclick="clearImage()">✕</button>
+</div>
+<input type="file" id="img-file-input" accept="image/*" capture="environment" style="display:none" onchange="handleImageFile(event)">
 
 <header>
   <div class="logo-block">
@@ -460,6 +511,14 @@ select.field-input option { background:#071425; }
   </div>
 
   <div id="think-dots"><span></span><span></span><span></span></div>
+
+  <div class="action-row">
+    <button class="cam-btn" id="cam-btn" onclick="openCamera()" title="Enviar imagen">📷</button>
+    <div style="flex:1; text-align:center; font-size:10px; letter-spacing:2px; color:var(--text-dim)">
+      TOCA EL BOTÓN O ESPACIO
+    </div>
+    <button class="cam-btn" id="tools-info-btn" title="Capacidades" onclick="showCapabilities()" style="font-size:16px">⚡</button>
+  </div>
 </div>
 
 <!-- Settings -->
@@ -631,6 +690,7 @@ async function sendToJarvis(text) {
       name: cfg.name,
     };
     if (cfg.model) body.model = cfg.model;
+    if (pendingImage) { body.image = pendingImage; clearImage(); }
 
     const res = await fetch(cfg.backend + '/chat', {
       method: 'POST',
@@ -772,6 +832,39 @@ function clearHistory() {
   const conv = document.getElementById('conversation');
   while (conv.children.length > 1) conv.removeChild(conv.lastChild);
   showToast('Conversación limpiada', 2500, 'ok');
+}
+
+// ── Image handling ────────────────────────────────────────────────────────────
+let pendingImage = null;
+
+function openCamera() {
+  document.getElementById('img-file-input').click();
+}
+
+function handleImageFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    pendingImage = ev.target.result;
+    document.getElementById('img-preview-thumb').src = pendingImage;
+    document.getElementById('img-preview-bar').classList.add('show');
+    document.getElementById('cam-btn').classList.add('has-img');
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function clearImage() {
+  pendingImage = null;
+  document.getElementById('img-preview-bar').classList.remove('show');
+  document.getElementById('cam-btn').classList.remove('has-img');
+}
+
+function showCapabilities() {
+  const caps = `Tengo acceso a:\n📧 Tu correo Gmail — "revisa mis correos no leídos"\n🔍 Búsqueda web — "precio del dólar hoy"\n📁 Tu vault completo — "qué hay en mis proyectos"\n📷 Análisis de imágenes — toca la cámara y habla\n⚡ Todo el contexto de MisCuentas, Stick y tus proyectos`;
+  addBubble('assistant', caps, false);
+  document.getElementById('conversation').scrollTop = 99999;
 }
 
 // ── Keyboard ──────────────────────────────────────────
