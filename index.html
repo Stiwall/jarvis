@@ -437,6 +437,42 @@ select.field-input option { background:#071425; }
   background:rgba(0,100,140,0.3);
 }
 
+
+/* ── Text input ── */
+.text-input-row {
+  display:flex; align-items:center; gap:8px;
+  width:100%; margin-top:2px;
+}
+#text-input {
+  flex:1; padding:10px 14px;
+  background:rgba(0,80,120,0.15);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text);
+  font-family:'Rajdhani',sans-serif;
+  font-size:15px; outline:none;
+  transition:border-color 0.2s;
+  caret-color:var(--accent);
+}
+#text-input:focus { border-color:rgba(0,212,255,0.5); box-shadow:var(--glow-sm); }
+#text-input::placeholder { color:var(--text-dim); }
+#send-btn {
+  background:rgba(0,80,120,0.3);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text-dim);
+  font-size:18px;
+  width:46px; height:46px;
+  cursor:pointer; display:flex;
+  align-items:center; justify-content:center;
+  transition:all 0.2s; flex-shrink:0;
+}
+#send-btn:hover, #send-btn:active {
+  border-color:rgba(0,212,255,0.5);
+  color:var(--accent);
+  background:rgba(0,100,140,0.3);
+}
+
 /* ── Action row ── */
 .action-row {
   display:flex; align-items:center; gap:10px;
@@ -518,6 +554,13 @@ select.field-input option { background:#071425; }
       TOCA EL BOTÓN O ESPACIO
     </div>
     <button class="cam-btn" id="tools-info-btn" title="Capacidades" onclick="showCapabilities()" style="font-size:16px">⚡</button>
+  </div>
+
+  <div class="text-input-row">
+    <input id="text-input" type="text" placeholder="Escribe un mensaje..."
+      autocomplete="off" autocorrect="off" spellcheck="false"
+      onkeydown="handleTextKey(event)">
+    <button id="send-btn" onclick="sendTextMsg()" title="Enviar">➤</button>
   </div>
 </div>
 
@@ -878,7 +921,21 @@ document.addEventListener('keydown', e => {
   }
 });
 
+
+// ── Text input ────────────────────────────────────────
+function handleTextKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendTextMsg(); }
+}
+function sendTextMsg() {
+  const inp = document.getElementById('text-input');
+  const text = inp.value.trim();
+  if (!text || state === 'thinking') return;
+  inp.value = '';
+  sendToJarvis(text);
+}
+
 init();
 </script>
 </body>
 </html>
+
